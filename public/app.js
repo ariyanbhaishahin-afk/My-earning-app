@@ -1,10 +1,11 @@
-
 const $ = id => document.getElementById(id);
 
 let mode = 'register';
 let token = localStorage.getItem('mea_token') || '';
 let me = null;
 let cache = null;
+
+const USDT_RATE = 110;
 
 function toast(s) {
   const t = $('toast');
@@ -90,6 +91,7 @@ async function refresh() {
     if (!Array.isArray(cache.tasks)) cache.tasks = [];
     if (!Array.isArray(cache.transactions)) cache.transactions = [];
     if (!Array.isArray(cache.withdrawals)) cache.withdrawals = [];
+    if (!Array.isArray(cache.deposits)) cache.deposits = [];
 
     render();
 
@@ -125,10 +127,12 @@ function render() {
   $('earned').textContent = money(u.earned);
   $('coins').textContent = u.coins || 0;
   $('refCode').textContent = u.referralCode || '';
+
   $('inviteUrl').textContent =
     location.origin + '/?ref=' + (u.referralCode || '');
 
   renderTasks();
+  renderDeposits();
 
   $('ledger').innerHTML = cache.transactions.length
     ? cache.transactions.map(t =>
@@ -162,12 +166,108 @@ function esc(s) {
 }
 
 function statusClass(s) {
-  s = String(s || '');
+  s = String(s || '').toLowerCase();
 
   return s.includes('reject')
     ? 'rejected'
     : s.includes('pending') ? 'pending' : 'success';
 }
+
+// ---------------- DEPOSIT SYSTEM ----------------
+
+function updateDepositEstimate() {
+  const amountInput = $('depositAmount');
+  const estimate = $('depositEstimate');
+
+  if (!amountInput || !estimate) return;
+
+  const amount = Number(amountInput.value);
+
+  if (!amount || amount <= 0) {
+    estimate.textContent = 'Estimated INR: ₹0.00';
+    return;
+  }
+
+  estimate.textContent =
+    'Estimated INR: ₹' + money(amount * USDT_RATE) +
+    ' (Demo rate: ₹110 per USDT)';
+}
+
+if ($('depositAmount')) {
+  $('depositAmount').addEventListener('input', updateDepositEstimate);
+  updateDepositEstimate();
+}
+
+if ($('depositForm')) {
+  $('depositForm').onsubmit = async e => {
+    e.preventDefault();
+
+    const amount = Number($('depositAmount').value);
+    const reference = $('depositReference').value.trim();
+
+    if (!amount || amount < 1 || amount > 100000) {
+      toast('1 से 100000 USDT के बीच Demo Amount डालें');
+      return;
+    }
+
+    if (reference.length < 4 || reference.length > 120) {
+      toast('Demo Reference कम से कम 4 और अधिकतम 120 अक्षर का होना चाहिए');
+      return;
+    }
+
+    try {
+      await api('/api/deposit', 'POST', {
+        amount,
+        reference
+      });
+
+      $('depositForm').reset();
+      updateDepositEstimate();
+
+      await refresh();
+      showView('wallet');
+
+      toast('Demo Deposit Request भेज दी गई');
+
+    } catch (e) {
+      toast('Deposit Error: ' + e.message);
+    }
+  };
+}
+
+function renderDeposits() {
+  const container = $('depositHistory');
+  if (!container) return;
+
+  const deposits = Array.isArray(cache.deposits)
+    ? cache.deposits
+    : [];
+
+  if (!deposits.length) {
+    container.innerHTML =
+      '<p class="muted">अभी कोई Demo Deposit Request नहीं है।</p>';
+    return;
+  }
+
+  container.innerHTML = deposits.map(d => {
+    const amount = Number(d.amount || 0);
+    const inr = Number(d.inrAmount || amount * USDT_RATE);
+
+    return `<div class="task">
+      <b>${money(amount)} USDT</b>
+      <p>Estimated Value: ₹${money(inr)}</p>
+      <p>Reference: ${esc(d.reference || '')}</p>
+      <p>Status:
+        <span class="pill ${statusClass(d.status)}">
+          ${esc(d.status || 'pending')}
+        </span>
+      </p>
+      <p>${d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : ''}</p>
+    </div>`;
+  }).join('');
+}
+
+// ---------------- TASK SYSTEM ----------------
 
 function renderTasks() {
   const tasks = Array.isArray(cache.tasks) ? cache.tasks : [];
@@ -205,6 +305,8 @@ async function claim(id) {
   }
 }
 
+// ---------------- WITHDRAWAL SYSTEM ----------------
+
 function openWithdraw() {
   $('amount').max = me.balance;
   $('modal').classList.remove('hidden');
@@ -226,12 +328,15 @@ $('withdrawForm').onsubmit = async e => {
     closeModal();
     await refresh();
     showView('wallet');
+
     toast('Demo request admin panel में भेज दी गई');
 
   } catch (e) {
     toast(e.message);
   }
 };
+
+// ---------------- REFERRAL SYSTEM ----------------
 
 async function copyCode() {
   try {
@@ -242,12 +347,15 @@ async function copyCode() {
   }
 }
 
+// ---------------- NAVIGATION ----------------
+
 function showView(v) {
   document.querySelectorAll('.view').forEach(x =>
     x.classList.add('hidden')
   );
 
-  $('view-' + v).classList.remove('hidden');
+  const view = $('view-' + v);
+  if (view) view.classList.remove('hidden');
 
   document.querySelectorAll('.nav button').forEach(b =>
     b.classList.toggle('active', b.dataset.view === v)
@@ -262,10 +370,13 @@ function logout() {
   token = '';
   localStorage.removeItem('mea_token');
   me = null;
+  cache = null;
 
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
 }
+
+// ---------------- START APP ----------------
 
 const params = new URLSearchParams(location.search);
 
@@ -278,3 +389,4 @@ if (token) refresh();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
+  
