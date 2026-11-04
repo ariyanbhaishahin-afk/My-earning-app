@@ -11,27 +11,54 @@ const PUBLIC = path.join(ROOT, 'public');
 const DB = path.join(ROOT, 'data.json');
 const PORT = Number(process.env.PORT || 3000);
 
-const ADMIN_USER = process.env.ADMIN_USER || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe123!';
-const SECRET = process.env.APP_SECRET || 'development-only-change-this-secret';
+const ADMIN_USER = process.env.ADMIN_USER;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const SECRET = process.env.APP_SECRET;
+
+if (!ADMIN_USER || !ADMIN_PASSWORD || !SECRET || SECRET.length < 32) {
+  throw new Error('Set ADMIN_USER, ADMIN_PASSWORD and APP_SECRET (at least 32 characters) in Render Environment.');
+}
 
 const COIN_RATE = 100;
 const USDT_RATE = 110;
 const REFERRAL_PERCENT = 1;
 
-let db = fs.existsSync(DB)
-  ? JSON.parse(fs.readFileSync(DB, 'utf8'))
-  : { users: [], withdrawals: [], deposits: [], ledger: [], tasks: [
-      {id:'daily',title:'Daily check-in',description:'Open the app and claim your daily demo reward',coins:10,active:true},
-      {id:'offer',title:'Explore an offer',description:'Try a sample offer task',coins:25,active:true},
-      {id:'profile',title:'Complete profile',description:'Complete your demo profile',coins:15,active:true}
-    ] };
+const defaultTasks = [
+  {
+    id: 'offer',
+    title: 'Explore an offer',
+    description: 'Try a sample demo offer task',
+    coins: 25,
+    active: true
+  },
+  {
+    id: 'profile',
+    title: 'Complete profile',
+    description: 'Complete your demo profile',
+    coins: 15,
+    active: true
+  }
+];
+
+let db;
+
+if (fs.existsSync(DB)) {
+  db = JSON.parse(fs.readFileSync(DB, 'utf8'));
+} else {
+  db = {
+    users: [],
+    withdrawals: [],
+    deposits: [],
+    ledger: [],
+    tasks: defaultTasks
+  };
+}
 
 db.users ||= [];
 db.withdrawals ||= [];
 db.deposits ||= [];
 db.ledger ||= [];
-db.tasks ||= [];
+db.tasks ||= defaultTasks;
 
 function persist() {
   const tmp = DB + '.tmp';
@@ -40,11 +67,42 @@ function persist() {
 }
 
 function id() {
-  return crypto.randomBytes(12).toString('hex');
+  return crypto.randomBytes(16).toString('hex');
 }
 
-function hash(s) {
-  return crypto.createHash('sha256').update(s).digest('hex');
+function roundMoney(n) {
+  return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+}
+
+function validPassword(s) {
+  return typeof s === 'string' && s.length >= 8 && s.length <= 128;
+}
+
+function validPin(s) {
+  return /^\d{6}$/.test(String(s || ''));
+}
+
+// Secure password/PIN hashing using scrypt and a unique salt.
+function makeHash(value) {
+  const salt = crypto.randomBytes(16);
+  const derived = crypto.scryptSync(value, salt, 64);
+  return salt.toString('hex') + ':' + derived.toString('hex');
+}
+
+function checkHash(value, stored) {
+  try {
+    const [saltHex, hashHex] = String(stored || '').split(':');
+    if (!saltHex || !hashHex) return false;
+
+    const salt = Buffer.from(saltHex, 'hex');
+    const expected = Buffer.from(hashHex, 'hex');
+    const actual = crypto.scryptSync(value, salt, 64);
+
+    return expected.length === actual.length &&
+      crypto.timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
 }
 
 function token(payload) {
@@ -53,54 +111,69 @@ function token(payload) {
     exp: Date.now() + 7 * 864e5
   })).toString('base64url');
 
-  const sig = crypto.createHmac('sha256', SECRET)
+  const signature = crypto.createHmac('sha256', SECRET)
     .update(body).digest('base64url');
 
-  return body + '.' + sig;
+  return body + '.' + signature;
 }
 
-function verify(t) {
+function verifyToken(value) {
   try {
-    const [b, s] = String(t || '').split('.');
-    if (!b || !s) return null;
+    const [body, signature] = String(value || '').split('.');
+    if (!body || !signature) return null;
 
     const expected = crypto.createHmac('sha256', SECRET)
-      .update(b).digest('base64url');
+      .update(body).digest('base64url');
 
-    const a = Buffer.from(s);
-    const e = Buffer.from(expected);
+    const a = Buffer.from(signature);
+    const b = Buffer.from(expected);
 
-    if (a.length !== e.length || !crypto.timingSafeEqual(a, e)) return null;
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return null;
+    }
 
-    const p = JSON.parse(Buffer.from(b, 'base64url'));
-    return p.exp > Date.now() ? p : null;
+    const payload = JSON.parse(
+      Buffer.from(body, 'base64url').toString()
+    );
+
+    return payload.exp > Date.now() ? payload : null;
   } catch {
     return null;
   }
 }
 
-function send(res, status, obj, headers = {}) {
+function send(res, status, data, headers = {}) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     ...headers
   });
-  res.end(JSON.stringify(obj));
+
+  res.end(JSON.stringify(data));
 }
 
 function read(req) {
   return new Promise((resolve, reject) => {
-    let s = '';
+    let body = '';
+    let finished = false;
 
-    req.on('data', c => {
-      s += c;
-      if (s.length > 1e6) reject(Error('Too large'));
+    req.on('data', chunk => {
+      if (finished) return;
+
+      body += chunk;
+
+      if (body.length > 1e6) {
+        finished = true;
+        reject(Error('Request too large'));
+      }
     });
 
     req.on('end', () => {
+      if (finished) return;
+
       try {
-        resolve(s ? JSON.parse(s) : {});
+        resolve(body ? JSON.parse(body) : {});
       } catch {
         reject(Error('Invalid JSON'));
       }
@@ -111,8 +184,14 @@ function read(req) {
 }
 
 function auth(req, role) {
-  const p = verify((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
-  return p && (!role || p.role === role) ? p : null;
+  const header = req.headers.authorization || '';
+  const session = verifyToken(
+    header.replace(/^Bearer\s+/i, '')
+  );
+
+  return session && (!role || session.role === role)
+    ? session
+    : null;
 }
 
 function userView(u) {
@@ -121,10 +200,13 @@ function userView(u) {
     name: u.name,
     phone: u.phone,
     referralCode: u.referralCode,
-    balance: u.balance,
-    coins: u.coins,
-    earned: u.earned,
-    createdAt: u.createdAt
+    balance: Number(u.balance || 0),
+    coins: Number(u.coins || 0),
+    earned: Number(u.earned || 0),
+    claimed: u.claimed || [],
+    createdAt: u.createdAt,
+    passwordSetupRequired: !u.passwordHash,
+    securityPinSetupRequired: !u.pinHash
   };
 }
 
@@ -141,8 +223,16 @@ function record(u, type, coins, amount, status = 'success', note = '') {
   });
 }
 
-function roundMoney(n) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
+function createUserToken(u) {
+  return token({ sub: u.id, role: 'user' });
+}
+
+function validPhone(value) {
+  return /^\d{10}$/.test(String(value || ''));
+}
+
+function findUserBySession(session) {
+  return db.users.find(u => u.id === session.sub);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -151,7 +241,10 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
 
     if (req.method === 'GET' && p === '/health') {
-      return send(res, 200, { ok: true, app: 'My Earning App Demo' });
+      return send(res, 200, {
+        ok: true,
+        app: 'HUNTER PAY Demo'
+      });
     }
 
     if (req.method === 'GET' && p === '/api/config') {
@@ -167,23 +260,44 @@ const server = http.createServer(async (req, res) => {
     // USER REGISTRATION
     if (req.method === 'POST' && p === '/api/register') {
       const b = await read(req);
+
       const name = String(b.name || '').trim();
       const phone = String(b.phone || '').replace(/\D/g, '');
+      const password = String(b.password || '');
+      const pin = String(b.pin || '');
 
-      if (name.length < 2 || phone.length !== 10) {
-        return send(res, 400, { error: 'Name and 10-digit mobile number are required' });
+      if (name.length < 2 || name.length > 80 || !validPhone(phone)) {
+        return send(res, 400, {
+          error: 'Enter your name and a valid 10-digit mobile number'
+        });
       }
 
-      if (db.users.some(x => x.phone === phone)) {
-        return send(res, 409, { error: 'This mobile number is already registered' });
+      if (!validPassword(password)) {
+        return send(res, 400, {
+          error: 'Password must contain at least 8 characters'
+        });
+      }
+
+      if (!validPin(pin)) {
+        return send(res, 400, {
+          error: 'Security PIN must contain exactly 6 digits'
+        });
+      }
+
+      if (db.users.some(u => u.phone === phone)) {
+        return send(res, 409, {
+          error: 'This mobile number is already registered. Contact Admin for account recovery.'
+        });
       }
 
       const u = {
         id: id(),
         name,
         phone,
-        referralCode: 'MY' + phone.slice(-4) +
-          crypto.randomBytes(2).toString('hex').toUpperCase(),
+        passwordHash: makeHash(password),
+        pinHash: makeHash(pin),
+        referralCode: 'HP' + phone.slice(-4) +
+          crypto.randomBytes(3).toString('hex').toUpperCase(),
         balance: 0,
         coins: 0,
         earned: 0,
@@ -192,21 +306,17 @@ const server = http.createServer(async (req, res) => {
       };
 
       const ref = String(b.referralCode || '').trim().toUpperCase();
+      const inviter = db.users.find(x => x.referralCode === ref);
 
-      if (ref) {
-        const inviter = db.users.find(x => x.referralCode === ref);
-
-        if (inviter && inviter.id !== u.id) {
-          u.referredBy = inviter.id;
-        }
+      if (ref && inviter && inviter.id !== u.id) {
+        u.referredBy = inviter.id;
       }
 
-      // No signup referral bonus.
       db.users.push(u);
       persist();
 
       return send(res, 201, {
-        token: token({ sub: u.id, role: 'user' }),
+        token: createUserToken(u),
         user: userView(u)
       });
     }
@@ -215,14 +325,36 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/login') {
       const b = await read(req);
       const phone = String(b.phone || '').replace(/\D/g, '');
+      const password = String(b.password || '');
+
+      if (!validPhone(phone) || !password) {
+        return send(res, 400, {
+          error: 'Enter your mobile number and password'
+        });
+      }
+
       const u = db.users.find(x => x.phone === phone);
 
       if (!u) {
-        return send(res, 404, { error: 'Account not found. Please register first.' });
+        return send(res, 404, {
+          error: 'Account not found. Please register first.'
+        });
+      }
+
+      if (!u.passwordHash) {
+        return send(res, 403, {
+          error: 'Password setup required. Contact Admin for verified account recovery.'
+        });
+      }
+
+      if (!checkHash(password, u.passwordHash)) {
+        return send(res, 401, {
+          error: 'Incorrect mobile number or password'
+        });
       }
 
       return send(res, 200, {
-        token: token({ sub: u.id, role: 'user' }),
+        token: createUserToken(u),
         user: userView(u)
       });
     }
@@ -231,14 +363,21 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && p === '/api/admin/login') {
       const b = await read(req);
 
-      const validUser = String(b.username) === ADMIN_USER;
-      const validPassword = crypto.timingSafeEqual(
-        Buffer.from(hash(String(b.password || ''))),
-        Buffer.from(hash(ADMIN_PASSWORD))
-      );
+      const username = String(b.username || '');
+      const password = String(b.password || '');
 
-      if (!validUser || !validPassword) {
-        return send(res, 401, { error: 'Invalid admin credentials' });
+      const a = Buffer.from(username);
+      const expectedUser = Buffer.from(ADMIN_USER);
+
+      const userOK = a.length === expectedUser.length &&
+        crypto.timingSafeEqual(a, expectedUser);
+
+      const passwordOK = checkAdminPassword(password);
+
+      if (!userOK || !passwordOK) {
+        return send(res, 401, {
+          error: 'Invalid admin credentials'
+        });
       }
 
       return send(res, 200, {
@@ -247,19 +386,27 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // AUTHENTICATED API
+    // ALL OTHER API ROUTES REQUIRE AUTHENTICATION
     if (p.startsWith('/api/')) {
       const isAdmin = p.startsWith('/api/admin/');
       const session = auth(req, isAdmin ? 'admin' : 'user');
 
-      if (!session) return send(res, 401, { error: 'Please sign in again' });
+      if (!session) {
+        return send(res, 401, {
+          error: 'Please sign in again'
+        });
+      }
 
       if (!isAdmin) {
-        const u = db.users.find(x => x.id === session.sub);
-        if (!u) return send(res, 401, { error: 'User not found' });
+        const u = findUserBySession(session);
+
+        if (!u) {
+          return send(res, 401, { error: 'User not found' });
+        }
 
         u.claimed ||= [];
 
+        // USER PROFILE
         if (req.method === 'GET' && p === '/api/me') {
           return send(res, 200, {
             user: userView(u),
@@ -274,26 +421,56 @@ const server = http.createServer(async (req, res) => {
           });
         }
 
-        // DEMO USDT DEPOSIT REQUEST
+        // SET OR CHANGE APP SECURITY PIN
+        if (req.method === 'POST' && p === '/api/security/pin') {
+          const b = await read(req);
+          const oldPin = String(b.oldPin || '');
+          const newPin = String(b.newPin || '');
+
+          if (!validPin(newPin)) {
+            return send(res, 400, {
+              error: 'New Security PIN must contain exactly 6 digits'
+            });
+          }
+
+          if (u.pinHash && !checkHash(oldPin, u.pinHash)) {
+            return send(res, 401, {
+              error: 'Current Security PIN is incorrect'
+            });
+          }
+
+          u.pinHash = makeHash(newPin);
+          persist();
+
+          return send(res, 200, {
+            message: 'Security PIN updated successfully'
+          });
+        }
+
+        // DEMO DEPOSIT REQUEST
         if (req.method === 'POST' && p === '/api/deposit') {
           const b = await read(req);
           const amount = Number(b.amount);
           const reference = String(b.reference || '').trim();
 
           if (!Number.isFinite(amount) || amount < 1 || amount > 100000) {
-            return send(res, 400, { error: 'Enter a valid demo USDT amount (minimum 1)' });
+            return send(res, 400, {
+              error: 'Enter a valid demo USDT amount (minimum 1)'
+            });
           }
 
           if (reference.length < 4 || reference.length > 120) {
-            return send(res, 400, { error: 'Enter a demo reference (4–120 characters)' });
+            return send(res, 400, {
+              error: 'Enter a demo reference between 4 and 120 characters'
+            });
           }
 
-          const duplicate = db.deposits.some(
-            d => d.reference.toLowerCase() === reference.toLowerCase()
-          );
-
-          if (duplicate) {
-            return send(res, 409, { error: 'This reference has already been submitted' });
+          if (db.deposits.some(d =>
+            String(d.reference).toLowerCase() === reference.toLowerCase()
+          )) {
+            return send(res, 409, {
+              error: 'This reference has already been submitted'
+            });
           }
 
           const deposit = {
@@ -310,11 +487,17 @@ const server = http.createServer(async (req, res) => {
           };
 
           db.deposits.unshift(deposit);
-          record(u, 'Demo USDT deposit request', 0, 0, 'pending',
-            amount + ' demo USDT; reference: ' + reference);
+
+          record(
+            u,
+            'Demo USDT deposit request',
+            0,
+            0,
+            'pending',
+            amount + ' demo USDT; reference: ' + reference
+          );
 
           persist();
-
           return send(res, 201, { deposit });
         }
 
@@ -323,17 +506,20 @@ const server = http.createServer(async (req, res) => {
           const b = await read(req);
           const t = db.tasks.find(x => x.id === b.taskId && x.active);
 
-          if (!t) return send(res, 404, { error: 'Task not available' });
+          if (!t) {
+            return send(res, 404, { error: 'Task not available' });
+          }
+
           if (u.claimed.includes(t.id)) {
             return send(res, 409, { error: 'Reward already claimed' });
           }
 
           u.claimed.push(t.id);
-          u.coins += t.coins;
+          u.coins = Number(u.coins || 0) + Number(t.coins);
 
-          const amount = t.coins / COIN_RATE;
-          u.balance += amount;
-          u.earned += amount;
+          const amount = Number(t.coins) / COIN_RATE;
+          u.balance = roundMoney(Number(u.balance || 0) + amount);
+          u.earned = roundMoney(Number(u.earned || 0) + amount);
 
           record(u, t.title, t.coins, amount);
           persist();
@@ -341,13 +527,27 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, { user: userView(u) });
         }
 
-        // DEMO WITHDRAWAL
+        // DEMO WITHDRAWAL REQUEST
         if (req.method === 'POST' && p === '/api/withdraw') {
           const b = await read(req);
           const amount = Number(b.amount);
           const upi = String(b.upi || '').trim();
+          const pin = String(b.pin || '');
 
-          if (!Number.isFinite(amount) || amount < 10 || amount > u.balance) {
+          if (!u.pinHash) {
+            return send(res, 403, {
+              error: 'Please set your 6-digit Security PIN first'
+            });
+          }
+
+          if (!checkHash(pin, u.pinHash)) {
+            return send(res, 401, {
+              error: 'Incorrect Security PIN'
+            });
+          }
+
+          if (!Number.isFinite(amount) || amount < 10 ||
+              amount > Number(u.balance || 0)) {
             return send(res, 400, {
               error: 'Minimum ₹10 and amount must not exceed available demo balance'
             });
@@ -371,14 +571,25 @@ const server = http.createServer(async (req, res) => {
           };
 
           db.withdrawals.unshift(w);
-          record(u, 'Withdrawal request', 0, -amount, 'pending',
-            'Demo request; no payment sent');
+
+          record(
+            u,
+            'Withdrawal request',
+            0,
+            -amount,
+            'pending',
+            'Demo request; no payment sent'
+          );
 
           persist();
 
-          return send(res, 201, { withdrawal: w, user: userView(u) });
+          return send(res, 201, {
+            withdrawal: w,
+            user: userView(u)
+          });
         }
 
+        // REFERRAL
         if (req.method === 'GET' && p === '/api/referral') {
           return send(res, 200, {
             code: u.referralCode,
@@ -387,6 +598,7 @@ const server = http.createServer(async (req, res) => {
         }
 
       } else {
+
         // ADMIN OVERVIEW
         if (req.method === 'GET' && p === '/api/admin/overview') {
           return send(res, 200, {
@@ -400,8 +612,56 @@ const server = http.createServer(async (req, res) => {
               pending:
                 db.withdrawals.filter(w => w.status === 'pending').length +
                 db.deposits.filter(d => d.status === 'pending').length,
-              totalDemoEarned: db.users.reduce((s, u) => s + (u.earned || 0), 0)
+              totalDemoEarned: db.users.reduce(
+                (sum, x) => sum + Number(x.earned || 0), 0
+              )
             }
+          });
+        }
+
+        // ADMIN: VERIFIED LEGACY ACCOUNT CREDENTIAL SETUP
+        // Admin must independently verify account ownership before using this.
+        if (req.method === 'POST' && p === '/api/admin/set-legacy-credentials') {
+          const b = await read(req);
+          const u = db.users.find(x => x.id === b.userId);
+          const password = String(b.password || '');
+          const pin = String(b.pin || '');
+
+          if (!u) {
+            return send(res, 404, { error: 'User not found' });
+          }
+
+          if (u.passwordHash) {
+            return send(res, 409, {
+              error: 'This account already has a password'
+            });
+          }
+
+          if (!validPassword(password) || !validPin(pin)) {
+            return send(res, 400, {
+              error: 'Provide a password of at least 8 characters and a 6-digit PIN'
+            });
+          }
+
+          u.passwordHash = makeHash(password);
+          u.pinHash = makeHash(pin);
+          u.credentialsUpdatedAt = new Date().toISOString();
+
+          persist();
+
+          record(
+            u,
+            'Account security setup',
+            0,
+            0,
+            'success',
+            'Legacy credentials set by Admin after ownership verification'
+          );
+
+          persist();
+
+          return send(res, 200, {
+            message: 'Legacy account credentials updated'
           });
         }
 
@@ -411,39 +671,61 @@ const server = http.createServer(async (req, res) => {
           const d = db.deposits.find(x => x.id === b.id);
 
           if (!d || d.status !== 'pending') {
-            return send(res, 404, { error: 'Pending deposit not found' });
+            return send(res, 404, {
+              error: 'Pending deposit not found'
+            });
           }
 
           const u = db.users.find(x => x.id === d.userId);
-          if (!u) return send(res, 404, { error: 'User not found' });
+          if (!u) {
+            return send(res, 404, { error: 'User not found' });
+          }
 
           if (b.action === 'approve') {
             const credit = roundMoney(d.usdt * USDT_RATE);
 
-            u.balance = roundMoney((u.balance || 0) + credit);
+            u.balance = roundMoney(Number(u.balance || 0) + credit);
             d.status = 'approved_demo';
             d.approvedAmount = credit;
             d.reviewedAt = new Date().toISOString();
 
-            record(u, 'Demo USDT deposit approved', 0, credit,
-              'approved_demo', d.usdt + ' demo USDT × ₹' + USDT_RATE);
+            record(
+              u,
+              'Demo USDT deposit approved',
+              0,
+              credit,
+              'approved_demo',
+              d.usdt + ' demo USDT × ₹' + USDT_RATE
+            );
 
-            // Direct referral commission: only for approved deposit.
-            if (u.referredBy) {
+            // Direct referral commission only.
+            if (u.referredBy && !d.referralCommission) {
               const referrer = db.users.find(x => x.id === u.referredBy);
 
               if (referrer) {
-                const commission = roundMoney(credit * REFERRAL_PERCENT / 100);
+                const commission = roundMoney(
+                  credit * REFERRAL_PERCENT / 100
+                );
 
-                referrer.balance = roundMoney((referrer.balance || 0) + commission);
-                referrer.earned = roundMoney((referrer.earned || 0) + commission);
+                referrer.balance = roundMoney(
+                  Number(referrer.balance || 0) + commission
+                );
+
+                referrer.earned = roundMoney(
+                  Number(referrer.earned || 0) + commission
+                );
 
                 d.referralCommission = commission;
                 d.referrerUserId = referrer.id;
 
-                record(referrer, 'Direct referral commission', 0,
-                  commission, 'success',
-                  '1% of approved demo deposit from ' + u.name);
+                record(
+                  referrer,
+                  'Direct referral commission',
+                  0,
+                  commission,
+                  'success',
+                  '1% of approved demo deposit'
+                );
               }
             }
 
@@ -451,132 +733,18 @@ const server = http.createServer(async (req, res) => {
             d.status = 'rejected';
             d.reviewedAt = new Date().toISOString();
 
-            record(u, 'Demo deposit rejected', 0, 0,
-              'rejected', 'Admin rejected demo deposit request');
+            record(
+              u,
+              'Demo deposit rejected',
+              0,
+              0,
+              'rejected',
+              'Admin rejected demo deposit request'
+            );
 
           } else {
             return send(res, 400, { error: 'Invalid action' });
           }
 
           persist();
-          return send(res, 200, { deposit: d });
-        }
-
-        // ADMIN APPROVE OR REJECT WITHDRAWAL
-        if (req.method === 'POST' && p === '/api/admin/withdrawal') {
-          const b = await read(req);
-          const w = db.withdrawals.find(x => x.id === b.id);
-
-          if (!w || w.status !== 'pending') {
-            return send(res, 404, { error: 'Pending request not found' });
-          }
-
-          const u = db.users.find(x => x.id === w.userId);
-          if (!u) return send(res, 404, { error: 'User not found' });
-
-          if (b.action === 'approve') {
-            w.status = 'approved_demo';
-            record(u, 'Withdrawal approved (demo)', 0, 0,
-              'approved_demo', 'No funds transferred');
-
-          } else if (b.action === 'reject') {
-            w.status = 'rejected';
-            u.balance = roundMoney((u.balance || 0) + w.amount);
-            record(u, 'Withdrawal refund', 0, w.amount,
-              'success', 'Demo refund after rejection');
-
-          } else {
-            return send(res, 400, { error: 'Invalid action' });
-          }
-
-          w.reviewedAt = new Date().toISOString();
-          persist();
-
-          return send(res, 200, { withdrawal: w });
-        }
-
-        // ADMIN MANUAL DEMO CREDIT
-        if (req.method === 'POST' && p === '/api/admin/credit') {
-          const b = await read(req);
-          const u = db.users.find(x => x.id === b.userId);
-          const coins = Math.floor(Number(b.coins));
-
-          if (!u || coins < 1 || coins > 100000) {
-            return send(res, 400, { error: 'Choose a user and valid coin amount' });
-          }
-
-          const amount = coins / COIN_RATE;
-          u.coins += coins;
-          u.balance += amount;
-          u.earned += amount;
-
-          record(u, 'Admin reward credit', coins, amount,
-            'success', 'Admin demo credit');
-
-          persist();
-          return send(res, 200, { user: userView(u) });
-        }
-
-        // ADMIN TASK SETTINGS
-        if (req.method === 'POST' && p === '/api/admin/task') {
-          const b = await read(req);
-          const t = db.tasks.find(x => x.id === b.id);
-
-          if (!t) return send(res, 404, { error: 'Task not found' });
-
-          if (typeof b.active === 'boolean') t.active = b.active;
-
-          if (b.coins !== undefined) {
-            const n = Math.floor(Number(b.coins));
-            if (n < 1 || n > 10000) {
-              return send(res, 400, { error: 'Invalid coin value' });
-            }
-            t.coins = n;
-          }
-
-          persist();
-          return send(res, 200, { task: t });
-        }
-      }
-
-      return send(res, 404, { error: 'API route not found' });
-    }
-
-    // STATIC FILES
-    const file = p === '/' ? 'index.html' : p.replace(/^\//, '');
-    const full = path.resolve(PUBLIC, file);
-
-    if (!full.startsWith(PUBLIC + path.sep) &&
-        full !== path.join(PUBLIC, 'index.html')) {
-      return send(res, 403, { error: 'Forbidden' });
-    }
-
-    if (!fs.existsSync(full) || !fs.statSync(full).isFile()) {
-      return send(res, 404, { error: 'Not found' });
-    }
-
-    const ext = path.extname(full);
-    const types = {
-      '.html': 'text/html; charset=utf-8',
-      '.js': 'text/javascript; charset=utf-8',
-      '.css': 'text/css; charset=utf-8',
-      '.json': 'application/json'
-    };
-
-    res.writeHead(200, {
-      'content-type': types[ext] || 'application/octet-stream',
-      'x-content-type-options': 'nosniff',
-      'cache-control': 'no-cache'
-    });
-
-    fs.createReadStream(full).pipe(res);
-
-  } catch (e) {
-    console.error(e);
-    send(res, 500, { error: 'Server error' });
-  }
-});
-
-server.listen(PORT, () => {
-  console.log(`My Earning App demo running at http://localhost:${PORT}`);
-});
+          return send(res, 200, { 
