@@ -1,0 +1,28 @@
+name: Extract App Source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          unzip -o my-earning-app-source.zip
+          cp -a my-earning-app-source/. .
+          rm -rf my-earning-app-source
+          rm -f my-earning-app-source.zip
+
+      - name: Save files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Extract app source" || true
+          git push
