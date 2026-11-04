@@ -172,7 +172,30 @@
   </div>
 
   <div id="view-wallet" class="view hidden">
-    <h2>My Wallet</h2>
+    <h2>My Wallet</h2><div class="card">
+  <div class="eyebrow">ADD FUNDS</div>
+  <h2>Deposit Demo USDT</h2>
+  <p class="muted">1 USDT = ₹110 demo rate</p>
+
+  <form id="depositForm">
+    <label for="depositAmount">Deposit Amount (USDT)</label>
+    <input id="depositAmount" type="number" min="1" step="0.01"
+      placeholder="Enter USDT amount" required>
+
+    <label for="depositReference">Reference (Optional)</label>
+    <input id="depositReference" placeholder="Demo reference">
+
+    <button class="btn primary wide" type="submit">
+      Submit Demo Deposit
+    </button>
+  </form>
+  <p class="tiny muted">Demo only. No real USDT transfer or payment is made.</p>
+</div>
+
+<div class="card" style="margin-top:15px">
+  <h3>Deposit History</h3>
+  <div id="deposits"></div>
+</div>
     <div class="card wallet-card">
       <div class="muted">AVAILABLE DEMO BALANCE</div>
       <strong class="big">₹<i id="walletBalance">0.00</i></strong>
