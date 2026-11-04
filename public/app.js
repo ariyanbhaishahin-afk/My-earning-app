@@ -8,6 +8,10 @@ let cache = null;
 
 function toast(s) {
   const t = $('toast');
+  if (!t) {
+    alert(s);
+    return;
+  }
   t.textContent = s;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2600);
@@ -80,6 +84,13 @@ async function refresh() {
     cache = await api('/api/me');
     me = cache.user;
 
+    if (!me) throw Error('User data नहीं मिला');
+
+    if (!Array.isArray(me.claimed)) me.claimed = [];
+    if (!Array.isArray(cache.tasks)) cache.tasks = [];
+    if (!Array.isArray(cache.transactions)) cache.transactions = [];
+    if (!Array.isArray(cache.withdrawals)) cache.withdrawals = [];
+
     render();
 
     $('auth').classList.add('hidden');
@@ -108,13 +119,14 @@ function money(n) {
 function render() {
   const u = me;
 
-  $('userName').textContent = u.name;
+  $('userName').textContent = u.name || '';
   $('balance').textContent = money(u.balance);
   $('walletBalance').textContent = money(u.balance);
   $('earned').textContent = money(u.earned);
-  $('coins').textContent = u.coins;
-  $('refCode').textContent = u.referralCode;
-  $('inviteUrl').textContent = location.origin + '/?ref=' + u.referralCode;
+  $('coins').textContent = u.coins || 0;
+  $('refCode').textContent = u.referralCode || '';
+  $('inviteUrl').textContent =
+    location.origin + '/?ref=' + (u.referralCode || '');
 
   renderTasks();
 
@@ -122,7 +134,7 @@ function render() {
     ? cache.transactions.map(t =>
         `<tr>
           <td>${esc(t.type)}</td>
-          <td>${t.coins}</td>
+          <td>${t.coins || 0}</td>
           <td>₹${money(t.amount)}</td>
           <td><span class="pill ${statusClass(t.status)}">${esc(t.status)}</span></td>
         </tr>`
@@ -133,7 +145,7 @@ function render() {
     ? cache.withdrawals.map(w =>
         `<div class="task">
           <b>₹${money(w.amount)}</b> • ${esc(w.status)}
-          <p>${esc(w.upi)} • ${new Date(w.createdAt).toLocaleString('en-IN')}</p>
+          <p>${esc(w.upi)} • ${w.createdAt ? new Date(w.createdAt).toLocaleString('en-IN') : ''}</p>
         </div>`
       ).join('')
     : '<p class="muted">अभी कोई withdrawal request नहीं।</p>';
@@ -150,23 +162,28 @@ function esc(s) {
 }
 
 function statusClass(s) {
+  s = String(s || '');
+
   return s.includes('reject')
     ? 'rejected'
     : s.includes('pending') ? 'pending' : 'success';
 }
 
 function renderTasks() {
-  const html = cache.tasks.map(t => {
-    const done = me.claimed.includes(t.id);
+  const tasks = Array.isArray(cache.tasks) ? cache.tasks : [];
+  const claimed = Array.isArray(me.claimed) ? me.claimed : [];
+
+  const html = tasks.map(t => {
+    const done = claimed.includes(t.id);
 
     return `<article class="task">
       <div class="emoji">${t.id === 'daily' ? '📅' : t.id === 'offer' ? '🎯' : '⭐'}</div>
       <h3>${esc(t.title)}</h3>
       <p>${esc(t.description)}</p>
-      <div class="reward">🪙 ${t.coins} coins</div>
+      <div class="reward">🪙 ${t.coins || 0} coins</div>
       <button class="btn ${done ? 'ghost' : 'primary'}"
         ${done ? 'disabled' : ''}
-        onclick="claim('${t.id}')">
+        onclick="claim('${esc(t.id)}')">
         ${done ? 'Claimed' : 'Claim reward'}
       </button>
     </article>`;
