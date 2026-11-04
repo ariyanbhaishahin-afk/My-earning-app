@@ -224,7 +224,7 @@ function statusClass(status) {
 
 async function refresh() {
   try {
-    cache = await api('/api/me');
+    cache = await api('/api/me');if (!Array.isArray(cache.deposits)) cache.deposits = [];
     me = cache.user;
 
     if (!me) throw new Error('User data not found.');
