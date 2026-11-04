@@ -1,242 +1,224 @@
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#101827">
-  <title>HUNTER PAY</title>
-  <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080b12">
+<title>HUNTER PAY</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div class="shell">
 
-  <header>
-    <div class="brand">
-      <span class="logo">H</span>
-      <div>
-        <b>HUNTER PAY</b>
-        <small>EARN • GROW • ACHIEVE</small>
-      </div>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo-mark"><span>H</span><i>♛</i></div>
+    <div>
+      <b>HUNTER PAY</b>
+      <small>EARN • GROW • ACHIEVE</small>
     </div>
-    <a class="link" href="/admin.html">Admin Panel ↗</a>
-  </header>
+  </div>
+  <a class="link" href="/admin.html">Admin ↗</a>
+</header>
 
-  <main id="auth" class="auth card">
-    <div class="eyebrow">WELCOME TO HUNTER PAY</div>
-    <h1>Start Your Earning Journey</h1>
-    <p class="muted">Create your demo account or log in to continue.</p>
+<main id="auth" class="auth card">
+  <div class="auth-brand">
+    <div class="big-logo"><span>H</span><i>♛</i></div>
+    <h1>HUNTER PAY</h1>
+    <p>EARN • GROW • ACHIEVE</p>
+  </div>
 
-    <div class="switch">
-      <button type="button" class="selected" id="regTab" onclick="setMode('register')">Create Account</button>
-      <button type="button" id="loginTab" onclick="setMode('login')">Login</button>
+  <div class="eyebrow">WELCOME TO YOUR JOURNEY</div>
+  <h2 id="authHeading">Create Your Account</h2>
+  <p class="muted" id="authDescription">Join HUNTER PAY and start your rewards journey.</p>
+
+  <div class="switch">
+    <button class="selected" id="regTab" type="button" onclick="setMode('register')">Sign Up</button>
+    <button id="loginTab" type="button" onclick="setMode('login')">Login</button>
+  </div>
+
+  <form id="authForm">
+    <label for="name">Full Name</label>
+    <input id="name" placeholder="Enter your full name" required>
+
+    <label for="phone">Mobile Number</label>
+    <input id="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="Enter 10-digit mobile number" required>
+
+    <label id="refLabel" for="ref">Referral Code (Optional)</label>
+    <input id="ref" placeholder="Enter referral code">
+
+    <button class="btn primary wide" id="authSubmit" type="submit">Create Account</button>
+  </form>
+
+  <div class="secure-note">✦ Secure Demo Account • No Real Payments</div>
+  <p class="tiny muted">By continuing, you agree to use HUNTER PAY in demo mode.</p>
+</main>
+
+<section id="app" class="hidden">
+
+  <div class="welcome">
+    <div>
+      <div class="muted">WELCOME BACK,</div>
+      <h1 id="userName">User</h1>
+      <p class="gold-text">Your journey. Your rewards. Your growth.</p>
     </div>
+    <button class="btn ghost" onclick="logout()">Logout</button>
+  </div>
 
-    <form id="authForm">
-      <div id="nameField">
-        <label>Full Name</label>
-        <input id="name" placeholder="Enter your full name" autocomplete="name">
+  <div class="hero-brand">
+    <div class="hero-crown">♛</div>
+    <div class="hero-h">H</div>
+    <h2>HUNTER PAY</h2>
+    <p>EARN • GROW • ACHIEVE</p>
+  </div>
+
+  <div class="stats">
+    <article class="card balance">
+      <div class="balance-top">
+        <span>YOUR DEMO BALANCE</span>
+        <span class="gold-dot">●</span>
       </div>
-
-      <label>Mobile Number</label>
-      <input id="phone" type="tel" inputmode="numeric" maxlength="10"
-        placeholder="Enter 10-digit mobile number" autocomplete="tel" required>
-
-      <div id="passwordField">
-        <label>Login Password</label>
-        <input id="password" type="password" minlength="8"
-          placeholder="Create a password (minimum 8 characters)"
-          autocomplete="new-password" required>
+      <strong>₹<i id="balance">0.00</i></strong>
+      <small>Demo wallet balance</small>
+      <div class="actions">
+        <button class="btn dark-btn" onclick="openWithdraw()">Withdraw</button>
+        <button class="btn outline-gold" onclick="refresh()">↻ Refresh</button>
       </div>
+    </article>
 
-      <div id="pinField">
-        <label>Security PIN</label>
-        <input id="pin" type="password" inputmode="numeric"
-          maxlength="6" minlength="4" placeholder="Create 4–6 digit Security PIN"
-          autocomplete="off">
-        <p class="tiny muted">Your Security PIN is used to authorize demo withdrawal requests. Never use your UPI PIN here.</p>
-      </div>
+    <article class="card metric">
+      <span>TOTAL EARNED</span>
+      <strong>₹<i id="earned">0.00</i></strong>
+      <span class="gold-text">✦ <b id="coins">0</b> Coins</span>
+    </article>
+  </div>
 
-      <div id="refField">
-        <label id="refLabel">Referral Code (Optional)</label>
-        <input id="ref" placeholder="Enter referral code">
-      </div>
-
-      <button type="submit" class="btn primary wide" id="authSubmit">Create Account</button>
-    </form>
-
-    <p class="tiny muted">
-      Demo mode: OTP verification and real payments are not enabled.
-      Existing accounts may require Admin-assisted password setup.
-    </p>
-  </main>
-
-  <section id="app" class="hidden">
-
-    <div class="welcome">
-      <div>
-        <div class="muted">Welcome, <b id="userName">User</b> 👋</div>
-        <h1>What will you achieve today?</h1>
-      </div>
-      <button class="btn ghost" onclick="logout()">Logout</button>
+  <div class="section-title">
+    <div>
+      <h2>Explore HUNTER PAY</h2>
+      <p class="muted">Choose your next earning activity.</p>
     </div>
+  </div>
 
-    <div class="stats">
-      <article class="card balance">
-        <span>Demo Wallet Balance</span>
-        <strong>₹<i id="balance">0.00</i></strong>
-        <small>This is not real cash</small>
-        <div class="actions">
-          <button class="btn primary" onclick="openWithdraw()">Withdraw Request</button>
-          <button class="btn ghost" onclick="refresh()">↻ Refresh</button>
-        </div>
-      </article>
+  <div class="feature-grid">
+    <button class="feature" onclick="showView('earn')">
+      <span>▣</span><b>Earn Tasks</b><small>Complete & earn</small>
+    </button>
+    <button class="feature" onclick="showView('wallet')">
+      <span>◈</span><b>My Wallet</b><small>Balance & rewards</small>
+    </button>
+    <button class="feature" onclick="showView('refer')">
+      <span>♧</span><b>Refer & Earn</b><small>Invite friends</small>
+    </button>
+    <button class="feature" onclick="showView('history')">
+      <span>◷</span><b>Activity</b><small>Track your history</small>
+    </button>
+    <button class="feature" onclick="showView('earn')">
+      <span>✦</span><b>Rewards</b><small>Available tasks</small>
+    </button>
+    <button class="feature" onclick="showView('wallet')">
+      <span>➤</span><b>Withdraw</b><small>Demo request</small>
+    </button>
+  </div>
 
-      <article class="card metric">
-        <span>Total Earned</span>
-        <strong>₹<i id="earned">0.00</i></strong>
-        <span>🪙 <b id="coins">0</b> Coins</span>
-      </article>
+  <div class="invite-banner" onclick="showView('refer')">
+    <div>
+      <span class="eyebrow">GROW TOGETHER</span>
+      <h2>Invite Friends</h2>
+      <p>Share your referral code and grow together.</p>
+      <span class="banner-link">INVITE NOW →</span>
     </div>
+    <div class="gift">🎁</div>
+  </div>
 
-    <nav class="nav">
-      <button class="active" data-view="home">Home</button>
-      <button data-view="earn">Earn</button>
-      <button data-view="refer">Refer</button>
-      <button data-view="wallet">Wallet</button>
-      <button data-view="history">History</button>
-    </nav>
+  <nav class="nav">
+    <button class="active" data-view="home"><span>⌂</span>Home</button>
+    <button data-view="earn"><span>▣</span>Tasks</button>
+    <button data-view="refer"><span>♧</span>Refer</button>
+    <button data-view="wallet"><span>◈</span>Wallet</button>
+    <button data-view="history"><span>◷</span>History</button>
+  </nav>
 
-    <div id="view-home" class="view">
-      <div class="section-head">
-        <div>
-          <h2>Available Rewards</h2>
-          <p class="muted">Complete tasks and earn demo coins.</p>
-        </div>
-      </div>
-
-      <div id="homeTasks" class="task-grid"></div>
-
-      <div class="card info">
-        <b>ℹ️ Demo Information</b>
-        <p>This is a test application. Coins, deposits and withdrawals are demo records only. No real money is transferred.</p>
-      </div>
+  <div id="view-home" class="view">
+    <div class="section-title">
+      <div><h2>Available Rewards</h2><p class="muted">Complete tasks to earn demo coins.</p></div>
+      <button class="text-button" onclick="showView('earn')">View All →</button>
     </div>
-
-    <div id="view-earn" class="view hidden">
-      <h2>Earn Rewards</h2>
-      <p class="muted">Available demo tasks</p>
-      <div id="allTasks" class="task-grid"></div>
+    <div id="homeTasks" class="task-grid"></div>
+    <div class="card info">
+      <b>ⓘ Demo Information</b>
+      <p>HUNTER PAY is currently a demo app. Coins and withdrawal requests are demo records. No real money is transferred.</p>
     </div>
+  </div>
 
-    <div id="view-refer" class="view hidden">
-      <div class="card">
-        <div class="eyebrow">INVITE & EARN</div>
-        <h2>Invite Your Friends</h2>
-        <p class="muted">
-          Earn a 1% direct referral commission when a referred user's demo deposit is approved by Admin.
-        </p>
+  <div id="view-earn" class="view hidden">
+    <h2>Earn Rewards</h2>
+    <p class="muted">Explore available demo tasks.</p>
+    <div id="allTasks" class="task-grid"></div>
+  </div>
 
-        <div class="refbox">
-          <strong id="refCode">—</strong>
-          <button class="btn primary" onclick="copyCode()">Copy</button>
-        </div>
-
-        <p class="tiny muted" id="inviteUrl"></p>
+  <div id="view-refer" class="view hidden">
+    <div class="card">
+      <div class="eyebrow">INVITE & EARN</div>
+      <h2>Refer Friends</h2>
+      <p class="muted">Invite friends to join your HUNTER PAY journey.</p>
+      <div class="refbox">
+        <strong id="refCode">—</strong>
+        <button class="btn primary" onclick="copyCode()">Copy Code</button>
       </div>
+      <p class="tiny muted" id="inviteUrl"></p>
     </div>
+  </div>
 
-    <div id="view-wallet" class="view hidden">
-      <h2>My Wallet</h2>
-
-      <div class="card">
-        <div class="muted">Available Demo Balance</div>
-        <strong class="big">₹<i id="walletBalance">0.00</i></strong>
-        <p class="muted tiny">100 coins = ₹1 demo balance</p>
-        <button class="btn primary" onclick="openWithdraw()">Request Withdrawal</button>
-      </div>
-
-      <div class="card">
-        <h3>Demo USDT Deposit</h3>
-        <p class="muted">Demo rate: 1 USDT = ₹110</p>
-        <p class="tiny muted">
-          Test requests only. Do not send real USDT.
-          No real wallet address or payment processing is provided.
-        </p>
-
-        <form id="depositForm">
-          <label>USDT Amount</label>
-          <input id="depositAmount" type="number" min="1" max="100000"
-            step="0.01" placeholder="Example: 10" required>
-
-          <label>Demo Reference</label>
-          <input id="depositReference" placeholder="Enter a demo reference"
-            minlength="4" maxlength="120" required>
-
-          <p id="depositEstimate" class="muted">Estimated demo credit: ₹0.00</p>
-
-          <button type="submit" class="btn primary wide">Submit Demo Deposit</button>
-        </form>
-      </div>
-
-      <h3>My Deposit Requests</h3>
-      <div id="depositHistory"></div>
-
-      <h3>Withdrawal Requests</h3>
-      <div id="withdrawals"></div>
+  <div id="view-wallet" class="view hidden">
+    <h2>My Wallet</h2>
+    <div class="card wallet-card">
+      <div class="muted">AVAILABLE DEMO BALANCE</div>
+      <strong class="big">₹<i id="walletBalance">0.00</i></strong>
+      <p class="muted tiny">100 coins = ₹1 demo balance</p>
+      <button class="btn primary" onclick="openWithdraw()">Request Withdrawal</button>
     </div>
+    <h3>Withdrawal Requests</h3>
+    <div id="withdrawals"></div>
+  </div>
 
-    <div id="view-history" class="view hidden">
-      <h2>Transaction History</h2>
-      <div class="card tablewrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Activity</th>
-              <th>Coins</th>
-              <th>Amount</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="ledger"></tbody>
-        </table>
-      </div>
+  <div id="view-history" class="view hidden">
+    <h2>Transaction History</h2>
+    <div class="card tablewrap">
+      <table>
+        <thead><tr><th>Activity</th><th>Coins</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody id="ledger"></tbody>
+      </table>
     </div>
+  </div>
 
-  </section>
+</section>
 
-  <footer>HUNTER PAY • EARN • GROW • ACHIEVE • MVP DEMO</footer>
+<footer>
+  <b>HUNTER PAY</b>
+  <span>EARN • GROW • ACHIEVE</span>
+  <small>DEMO APP • NO REAL PAYMENTS</small>
+</footer>
 </div>
 
 <div id="modal" class="modal hidden">
   <div class="dialog">
-    <button type="button" class="close" onclick="closeModal()">×</button>
+    <button class="close" onclick="closeModal()">×</button>
+    <div class="eyebrow">HUNTER PAY WALLET</div>
     <h2>Withdrawal Request</h2>
     <p class="muted">This is a demo request. No real UPI payment will be sent.</p>
-
     <form id="withdrawForm">
-      <label>Amount (₹)</label>
-      <input id="amount" type="number" min="10" step="1"
-        placeholder="Enter amount" required>
-
-      <label>UPI ID</label>
+      <label for="amount">Amount (₹)</label>
+      <input id="amount" type="number" min="10" step="1" required>
+      <label for="upi">UPI ID</label>
       <input id="upi" placeholder="name@bank" required>
-
-      <label>Security PIN</label>
-      <input id="withdrawPin" type="password" inputmode="numeric"
-        minlength="4" maxlength="6" placeholder="Enter your app Security PIN"
-        autocomplete="off" required>
-
-      <p class="tiny muted">Enter your HUNTER PAY Security PIN only. Never enter your bank or UPI PIN.</p>
-
-      <button type="submit" class="btn primary wide">Submit Request</button>
+      <button class="btn primary wide">Submit Demo Request</button>
     </form>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
-
 <script src="/app.js"></script>
 </body>
 </html>
