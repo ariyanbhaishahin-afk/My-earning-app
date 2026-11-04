@@ -1,11 +1,11 @@
 
 <!doctype html>
-<html lang="hi">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#101827">
-  <title>My Earning App</title>
+  <title>HUNTER PAY</title>
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -14,66 +14,89 @@
 
   <header>
     <div class="brand">
-      <span class="logo">₹</span>
+      <span class="logo">H</span>
       <div>
-        <b>My Earning App</b>
-        <small>Rewards • Wallet • Referrals</small>
+        <b>HUNTER PAY</b>
+        <small>EARN • GROW • ACHIEVE</small>
       </div>
     </div>
     <a class="link" href="/admin.html">Admin Panel ↗</a>
   </header>
 
   <main id="auth" class="auth card">
-    <div class="eyebrow">WELCOME</div>
-    <h1>अपना rewards सफर शुरू करें</h1>
-    <p class="muted">Demo account बनाएं या पहले से बने अकाउंट में लॉगिन करें।</p>
+    <div class="eyebrow">WELCOME TO HUNTER PAY</div>
+    <h1>Start Your Earning Journey</h1>
+    <p class="muted">Create your demo account or log in to continue.</p>
 
     <div class="switch">
-      <button class="selected" id="regTab" onclick="setMode('register')">नया अकाउंट</button>
-      <button id="loginTab" onclick="setMode('login')">लॉगिन</button>
+      <button type="button" class="selected" id="regTab" onclick="setMode('register')">Create Account</button>
+      <button type="button" id="loginTab" onclick="setMode('login')">Login</button>
     </div>
 
     <form id="authForm">
-      <label>आपका नाम</label>
-      <input id="name" placeholder="पूरा नाम" required>
+      <div id="nameField">
+        <label>Full Name</label>
+        <input id="name" placeholder="Enter your full name" autocomplete="name">
+      </div>
 
-      <label>मोबाइल नंबर</label>
-      <input id="phone" inputmode="numeric" maxlength="10" placeholder="10 अंकों का नंबर" required>
+      <label>Mobile Number</label>
+      <input id="phone" type="tel" inputmode="numeric" maxlength="10"
+        placeholder="Enter 10-digit mobile number" autocomplete="tel" required>
 
-      <label id="refLabel">Referral code (optional)</label>
-      <input id="ref" placeholder="दोस्त का referral code">
+      <div id="passwordField">
+        <label>Login Password</label>
+        <input id="password" type="password" minlength="8"
+          placeholder="Create a password (minimum 8 characters)"
+          autocomplete="new-password" required>
+      </div>
 
-      <button class="btn primary wide" id="authSubmit">अकाउंट बनाएं</button>
+      <div id="pinField">
+        <label>Security PIN</label>
+        <input id="pin" type="password" inputmode="numeric"
+          maxlength="6" minlength="4" placeholder="Create 4–6 digit Security PIN"
+          autocomplete="off">
+        <p class="tiny muted">Your Security PIN is used to authorize demo withdrawal requests. Never use your UPI PIN here.</p>
+      </div>
+
+      <div id="refField">
+        <label id="refLabel">Referral Code (Optional)</label>
+        <input id="ref" placeholder="Enter referral code">
+      </div>
+
+      <button type="submit" class="btn primary wide" id="authSubmit">Create Account</button>
     </form>
 
-    <p class="tiny muted">Demo mode: OTP सत्यापन और असली पेमेंट चालू नहीं हैं।</p>
+    <p class="tiny muted">
+      Demo mode: OTP verification and real payments are not enabled.
+      Existing accounts may require Admin-assisted password setup.
+    </p>
   </main>
 
   <section id="app" class="hidden">
 
     <div class="welcome">
       <div>
-        <div class="muted">नमस्ते, <b id="userName">User</b> 👋</div>
-        <h1>आज क्या हासिल करेंगे?</h1>
+        <div class="muted">Welcome, <b id="userName">User</b> 👋</div>
+        <h1>What will you achieve today?</h1>
       </div>
       <button class="btn ghost" onclick="logout()">Logout</button>
     </div>
 
     <div class="stats">
       <article class="card balance">
-        <span>Demo wallet balance</span>
+        <span>Demo Wallet Balance</span>
         <strong>₹<i id="balance">0.00</i></strong>
-        <small>यह वास्तविक कैश नहीं है</small>
+        <small>This is not real cash</small>
         <div class="actions">
-          <button class="btn primary" onclick="openWithdraw()">Withdraw request</button>
+          <button class="btn primary" onclick="openWithdraw()">Withdraw Request</button>
           <button class="btn ghost" onclick="refresh()">↻ Refresh</button>
         </div>
       </article>
 
       <article class="card metric">
-        <span>Total earned</span>
+        <span>Total Earned</span>
         <strong>₹<i id="earned">0.00</i></strong>
-        <span>🪙 <b id="coins">0</b> coins</span>
+        <span>🪙 <b id="coins">0</b> Coins</span>
       </article>
     </div>
 
@@ -88,32 +111,31 @@
     <div id="view-home" class="view">
       <div class="section-head">
         <div>
-          <h2>आज के Rewards</h2>
-          <p class="muted">टास्क पूरे करें और demo coins पाएं।</p>
+          <h2>Available Rewards</h2>
+          <p class="muted">Complete tasks and earn demo coins.</p>
         </div>
       </div>
 
       <div id="homeTasks" class="task-grid"></div>
 
       <div class="card info">
-        <b>ℹ️ Demo जानकारी</b>
-        <p>यह टेस्ट ऐप है। Coins, Deposit और Withdrawal केवल डेमो रिकॉर्ड हैं। कोई वास्तविक पैसा ट्रांसफर नहीं होता।</p>
+        <b>ℹ️ Demo Information</b>
+        <p>This is a test application. Coins, deposits and withdrawals are demo records only. No real money is transferred.</p>
       </div>
     </div>
 
     <div id="view-earn" class="view hidden">
       <h2>Earn Rewards</h2>
-      <p class="muted">उपलब्ध डेमो टास्क</p>
+      <p class="muted">Available demo tasks</p>
       <div id="allTasks" class="task-grid"></div>
     </div>
 
     <div id="view-refer" class="view hidden">
       <div class="card">
         <div class="eyebrow">INVITE & EARN</div>
-        <h2>दोस्तों को आमंत्रित करें</h2>
-
+        <h2>Invite Your Friends</h2>
         <p class="muted">
-          आपके Referral Code से जुड़े यूजर का Demo Deposit Admin द्वारा Approve होने पर आपको 1% Direct Referral Commission मिलेगा।
+          Earn a 1% direct referral commission when a referred user's demo deposit is approved by Admin.
         </p>
 
         <div class="refbox">
@@ -129,48 +151,39 @@
       <h2>My Wallet</h2>
 
       <div class="card">
-        <div class="muted">Available demo balance</div>
+        <div class="muted">Available Demo Balance</div>
         <strong class="big">₹<i id="walletBalance">0.00</i></strong>
         <p class="muted tiny">100 coins = ₹1 demo balance</p>
-        <button class="btn primary" onclick="openWithdraw()">Request withdrawal</button>
+        <button class="btn primary" onclick="openWithdraw()">Request Withdrawal</button>
       </div>
 
       <div class="card">
         <h3>Demo USDT Deposit</h3>
         <p class="muted">Demo rate: 1 USDT = ₹110</p>
-        <p class="tiny muted">केवल टेस्ट Request है। असली USDT न भेजें। कोई Wallet Address नहीं दिया जा रहा है।</p>
+        <p class="tiny muted">
+          Test requests only. Do not send real USDT.
+          No real wallet address or payment processing is provided.
+        </p>
 
         <form id="depositForm">
           <label>USDT Amount</label>
-          <input
-            id="depositAmount"
-            type="number"
-            min="1"
-            max="100000"
-            step="0.01"
-            placeholder="जैसे 10"
-            required
-          >
+          <input id="depositAmount" type="number" min="1" max="100000"
+            step="0.01" placeholder="Example: 10" required>
 
           <label>Demo Reference</label>
-          <input
-            id="depositReference"
-            placeholder="कोई Demo Reference लिखें"
-            minlength="4"
-            maxlength="120"
-            required
-          >
+          <input id="depositReference" placeholder="Enter a demo reference"
+            minlength="4" maxlength="120" required>
 
           <p id="depositEstimate" class="muted">Estimated demo credit: ₹0.00</p>
 
-          <button class="btn primary wide">Submit Demo Deposit</button>
+          <button type="submit" class="btn primary wide">Submit Demo Deposit</button>
         </form>
       </div>
 
       <h3>My Deposit Requests</h3>
       <div id="depositHistory"></div>
 
-      <h3>Withdrawal requests</h3>
+      <h3>Withdrawal Requests</h3>
       <div id="withdrawals"></div>
     </div>
 
@@ -193,23 +206,31 @@
 
   </section>
 
-  <footer>My Earning App • MVP Demo • v0.3</footer>
+  <footer>HUNTER PAY • EARN • GROW • ACHIEVE • MVP DEMO</footer>
 </div>
 
 <div id="modal" class="modal hidden">
   <div class="dialog">
-    <button class="close" onclick="closeModal()">×</button>
+    <button type="button" class="close" onclick="closeModal()">×</button>
     <h2>Withdrawal Request</h2>
-    <p class="muted">यह केवल demo request होगी, कोई UPI payment नहीं भेजा जाएगा।</p>
+    <p class="muted">This is a demo request. No real UPI payment will be sent.</p>
 
     <form id="withdrawForm">
       <label>Amount (₹)</label>
-      <input id="amount" type="number" min="10" step="1" required>
+      <input id="amount" type="number" min="10" step="1"
+        placeholder="Enter amount" required>
 
       <label>UPI ID</label>
       <input id="upi" placeholder="name@bank" required>
 
-      <button class="btn primary wide">Request submit करें</button>
+      <label>Security PIN</label>
+      <input id="withdrawPin" type="password" inputmode="numeric"
+        minlength="4" maxlength="6" placeholder="Enter your app Security PIN"
+        autocomplete="off" required>
+
+      <p class="tiny muted">Enter your HUNTER PAY Security PIN only. Never enter your bank or UPI PIN.</p>
+
+      <button type="submit" class="btn primary wide">Submit Request</button>
     </form>
   </div>
 </div>
