@@ -1,3 +1,4 @@
+
 const $ = id => document.getElementById(id);
 
 let mode = 'register';
@@ -7,19 +8,20 @@ let cache = null;
 
 const USDT_RATE = 110;
 
-function toast(s) {
+function toast(message) {
   const t = $('toast');
   if (!t) {
-    alert(s);
+    alert(message);
     return;
   }
-  t.textContent = s;
+
+  t.textContent = message;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2600);
 }
 
 async function api(url, method = 'GET', body) {
-  const r = await fetch(url, {
+  const response = await fetch(url, {
     method,
     headers: {
       'content-type': 'application/json',
@@ -28,64 +30,125 @@ async function api(url, method = 'GET', body) {
     ...(body ? { body: JSON.stringify(body) } : {})
   });
 
-  const d = await r.json();
+  const data = await response.json();
 
-  if (!r.ok) throw Error(d.error || 'Request failed');
+  if (!response.ok) {
+    throw Error(data.error || 'Request failed');
+  }
 
-  return d;
+  return data;
 }
 
-function setMode(m) {
-  mode = m;
+// ---------------- AUTHENTICATION ----------------
 
-  $('regTab').classList.toggle('selected', m === 'register');
-  $('loginTab').classList.toggle('selected', m === 'login');
+function setMode(selectedMode) {
+  mode = selectedMode;
 
-  $('name').classList.toggle('hidden', m === 'login');
-  $('name').required = m === 'register';
+  $('regTab').classList.toggle('selected', mode === 'register');
+  $('loginTab').classList.toggle('selected', mode === 'login');
 
-  $('ref').classList.toggle('hidden', m === 'login');
-  $('refLabel').classList.toggle('hidden', m === 'login');
+  $('nameField').classList.toggle('hidden', mode === 'login');
+  $('name').required = mode === 'register';
+
+  $('pinField').classList.toggle('hidden', mode === 'login');
+  $('pin').required = mode === 'register';
+
+  $('refField').classList.toggle('hidden', mode === 'login');
+  $('password').autocomplete =
+    mode === 'login' ? 'current-password' : 'new-password';
+
+  $('password').placeholder =
+    mode === 'login'
+      ? 'Enter your password'
+      : 'Create a password (minimum 8 characters)';
+
+  $('password').minLength = mode === 'register' ? 8 : 1;
 
   $('authSubmit').textContent =
-    m === 'register' ? 'अकाउंट बनाएं' : 'लॉगिन करें';
+    mode === 'register' ? 'Create Account' : 'Login';
 }
 
-$('authForm').onsubmit = async e => {
-  e.preventDefault();
+$('authForm').onsubmit = async event => {
+  event.preventDefault();
 
   const phone = $('phone').value.replace(/\D/g, '');
+  const password = $('password').value;
 
   if (phone.length !== 10) {
-    toast('कृपया 10 अंकों का मोबाइल नंबर डालें');
+    toast('Enter a valid 10-digit mobile number.');
     return;
   }
 
-  toast('कृपया इंतजार करें...');
+  if (!password) {
+    toast('Enter your login password.');
+    return;
+  }
+
+  if (mode === 'register') {
+    if (password.length < 8) {
+      toast('Password must contain at least 8 characters.');
+      return;
+    }
+
+    const pin = $('pin').value;
+
+    if (!/^\d{4,6}$/.test(pin)) {
+      toast('Security PIN must contain 4 to 6 digits.');
+      return;
+    }
+
+    if (!$('name').value.trim()) {
+      toast('Enter your full name.');
+      return;
+    }
+  }
+
+  $('authSubmit').disabled = true;
 
   try {
-    const d = await api('/api/' + mode, 'POST', {
-      name: $('name').value.trim(),
-      phone: phone,
-      referralCode: $('ref').value.trim()
-    });
+    const body = mode === 'register'
+      ? {
+          name: $('name').value.trim(),
+          phone,
+          password,
+          pin: $('pin').value,
+          referralCode: $('ref').value.trim()
+        }
+      : {
+          phone,
+          password
+        };
 
-    token = d.token;
+    const data = await api('/api/' + mode, 'POST', body);
+
+    token = data.token;
     localStorage.setItem('mea_token', token);
 
-    await refresh();
+    $('authForm').reset();
 
-  } catch (e) {
-    toast('Login/Register Error: ' + e.message);
+    const success = await refresh();
+
+    if (success) {
+      toast(mode === 'register'
+        ? 'Account created successfully.'
+        : 'Login successful.');
+    }
+
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    $('authSubmit').disabled = false;
   }
 };
+
+// ---------------- USER DATA ----------------
 
 async function refresh() {
   try {
     cache = await api('/api/me');
     me = cache.user;
 
-    if (!me) throw Error('User data नहीं मिला');
+    if (!me) throw Error('User data not found.');
 
     if (!Array.isArray(me.claimed)) me.claimed = [];
     if (!Array.isArray(cache.tasks)) cache.tasks = [];
@@ -100,77 +163,83 @@ async function refresh() {
 
     return true;
 
-  } catch (e) {
-    if (token) {
-      token = '';
-      localStorage.removeItem('mea_token');
-    }
+  } catch (error) {
+    token = '';
+    localStorage.removeItem('mea_token');
 
     $('auth').classList.remove('hidden');
     $('app').classList.add('hidden');
 
-    toast('Error: ' + e.message);
+    toast(error.message);
     return false;
   }
 }
 
-function money(n) {
-  return Number(n || 0).toFixed(2);
+function money(value) {
+  return Number(value || 0).toFixed(2);
 }
 
 function render() {
-  const u = me;
-
-  $('userName').textContent = u.name || '';
-  $('balance').textContent = money(u.balance);
-  $('walletBalance').textContent = money(u.balance);
-  $('earned').textContent = money(u.earned);
-  $('coins').textContent = u.coins || 0;
-  $('refCode').textContent = u.referralCode || '';
+  $('userName').textContent = me.name || 'User';
+  $('balance').textContent = money(me.balance);
+  $('walletBalance').textContent = money(me.balance);
+  $('earned').textContent = money(me.earned);
+  $('coins').textContent = me.coins || 0;
+  $('refCode').textContent = me.referralCode || '—';
 
   $('inviteUrl').textContent =
-    location.origin + '/?ref=' + (u.referralCode || '');
+    location.origin + '/?ref=' + (me.referralCode || '');
 
   renderTasks();
   renderDeposits();
 
   $('ledger').innerHTML = cache.transactions.length
-    ? cache.transactions.map(t =>
-        `<tr>
-          <td>${esc(t.type)}</td>
-          <td>${t.coins || 0}</td>
-          <td>₹${money(t.amount)}</td>
-          <td><span class="pill ${statusClass(t.status)}">${esc(t.status)}</span></td>
-        </tr>`
-      ).join('')
-    : '<tr><td colspan="4">अभी कोई transaction नहीं।</td></tr>';
+    ? cache.transactions.map(transaction => `
+        <tr>
+          <td>${esc(transaction.type)}</td>
+          <td>${Number(transaction.coins || 0)}</td>
+          <td>₹${money(transaction.amount)}</td>
+          <td>
+            <span class="pill ${statusClass(transaction.status)}">
+              ${esc(transaction.status)}
+            </span>
+          </td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="4">No transactions yet.</td></tr>';
 
   $('withdrawals').innerHTML = cache.withdrawals.length
-    ? cache.withdrawals.map(w =>
-        `<div class="task">
-          <b>₹${money(w.amount)}</b> • ${esc(w.status)}
-          <p>${esc(w.upi)} • ${w.createdAt ? new Date(w.createdAt).toLocaleString('en-IN') : ''}</p>
-        </div>`
-      ).join('')
-    : '<p class="muted">अभी कोई withdrawal request नहीं।</p>';
+    ? cache.withdrawals.map(withdrawal => `
+        <div class="task">
+          <b>₹${money(withdrawal.amount)}</b>
+          • ${esc(withdrawal.status)}
+          <p>${esc(withdrawal.upi || '')}</p>
+          <p>${withdrawal.createdAt
+            ? new Date(withdrawal.createdAt).toLocaleString('en-IN')
+            : ''}</p>
+        </div>
+      `).join('')
+    : '<p class="muted">No withdrawal requests yet.</p>';
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',
     '"': '&quot;',
     "'": '&#39;'
-  }[c]));
+  }[character]));
 }
 
-function statusClass(s) {
-  s = String(s || '').toLowerCase();
+function statusClass(status) {
+  status = String(status || '').toLowerCase();
 
-  return s.includes('reject')
+  return status.includes('reject')
     ? 'rejected'
-    : s.includes('pending') ? 'pending' : 'success';
+    : status.includes('pending')
+      ? 'pending'
+      : 'success';
 }
 
 // ---------------- DEPOSIT SYSTEM ----------------
@@ -183,61 +252,50 @@ function updateDepositEstimate() {
 
   const amount = Number(amountInput.value);
 
-  if (!amount || amount <= 0) {
-    estimate.textContent = 'Estimated INR: ₹0.00';
+  estimate.textContent = amount > 0
+    ? 'Estimated demo credit: ₹' + money(amount * USDT_RATE)
+    : 'Estimated demo credit: ₹0.00';
+}
+
+$('depositAmount').addEventListener('input', updateDepositEstimate);
+
+$('depositForm').onsubmit = async event => {
+  event.preventDefault();
+
+  const amount = Number($('depositAmount').value);
+  const reference = $('depositReference').value.trim();
+
+  if (!Number.isFinite(amount) || amount < 1 || amount > 100000) {
+    toast('Enter an amount between 1 and 100000 USDT.');
     return;
   }
 
-  estimate.textContent =
-    'Estimated INR: ₹' + money(amount * USDT_RATE) +
-    ' (Demo rate: ₹110 per USDT)';
-}
+  if (reference.length < 4 || reference.length > 120) {
+    toast('Demo reference must contain 4 to 120 characters.');
+    return;
+  }
 
-if ($('depositAmount')) {
-  $('depositAmount').addEventListener('input', updateDepositEstimate);
-  updateDepositEstimate();
-}
+  try {
+    await api('/api/deposit', 'POST', {
+      amount,
+      reference
+    });
 
-if ($('depositForm')) {
-  $('depositForm').onsubmit = async e => {
-    e.preventDefault();
+    $('depositForm').reset();
+    updateDepositEstimate();
 
-    const amount = Number($('depositAmount').value);
-    const reference = $('depositReference').value.trim();
+    await refresh();
+    showView('wallet');
 
-    if (!amount || amount < 1 || amount > 100000) {
-      toast('1 से 100000 USDT के बीच Demo Amount डालें');
-      return;
-    }
+    toast('Demo deposit request submitted.');
 
-    if (reference.length < 4 || reference.length > 120) {
-      toast('Demo Reference कम से कम 4 और अधिकतम 120 अक्षर का होना चाहिए');
-      return;
-    }
-
-    try {
-      await api('/api/deposit', 'POST', {
-        amount,
-        reference
-      });
-
-      $('depositForm').reset();
-      updateDepositEstimate();
-
-      await refresh();
-      showView('wallet');
-
-      toast('Demo Deposit Request भेज दी गई');
-
-    } catch (e) {
-      toast('Deposit Error: ' + e.message);
-    }
-  };
-}
+  } catch (error) {
+    toast('Deposit error: ' + error.message);
+  }
+};
 
 function renderDeposits() {
   const container = $('depositHistory');
-  if (!container) return;
 
   const deposits = Array.isArray(cache.deposits)
     ? cache.deposits
@@ -245,70 +303,94 @@ function renderDeposits() {
 
   if (!deposits.length) {
     container.innerHTML =
-      '<p class="muted">अभी कोई Demo Deposit Request नहीं है।</p>';
+      '<p class="muted">No demo deposit requests yet.</p>';
     return;
   }
 
-  container.innerHTML = deposits.map(d => {
-    const amount = Number(d.amount || 0);
-    const inr = Number(d.inrAmount || amount * USDT_RATE);
+  container.innerHTML = deposits.map(deposit => {
+    const amount = Number(deposit.usdt ?? deposit.amount ?? 0);
+    const inr = Number(
+      deposit.inrAmount ?? amount * USDT_RATE
+    );
 
-    return `<div class="task">
-      <b>${money(amount)} USDT</b>
-      <p>Estimated Value: ₹${money(inr)}</p>
-      <p>Reference: ${esc(d.reference || '')}</p>
-      <p>Status:
-        <span class="pill ${statusClass(d.status)}">
-          ${esc(d.status || 'pending')}
-        </span>
-      </p>
-      <p>${d.createdAt ? new Date(d.createdAt).toLocaleString('en-IN') : ''}</p>
-    </div>`;
+    return `
+      <div class="task">
+        <b>${money(amount)} USDT</b>
+        <p>Estimated Value: ₹${money(inr)}</p>
+        <p>Reference: ${esc(deposit.reference || '')}</p>
+        <p>
+          Status:
+          <span class="pill ${statusClass(deposit.status)}">
+            ${esc(deposit.status || 'pending')}
+          </span>
+        </p>
+        <p>${deposit.createdAt
+          ? new Date(deposit.createdAt).toLocaleString('en-IN')
+          : ''}</p>
+      </div>
+    `;
   }).join('');
 }
 
 // ---------------- TASK SYSTEM ----------------
 
 function renderTasks() {
-  const tasks = Array.isArray(cache.tasks) ? cache.tasks : [];
-  const claimed = Array.isArray(me.claimed) ? me.claimed : [];
+  const tasks = Array.isArray(cache.tasks)
+    ? cache.tasks.filter(task => task.id !== 'daily')
+    : [];
 
-  const html = tasks.map(t => {
-    const done = claimed.includes(t.id);
+  const claimed = Array.isArray(me.claimed)
+    ? me.claimed
+    : [];
 
-    return `<article class="task">
-      <div class="emoji">${t.id === 'daily' ? '📅' : t.id === 'offer' ? '🎯' : '⭐'}</div>
-      <h3>${esc(t.title)}</h3>
-      <p>${esc(t.description)}</p>
-      <div class="reward">🪙 ${t.coins || 0} coins</div>
-      <button class="btn ${done ? 'ghost' : 'primary'}"
-        ${done ? 'disabled' : ''}
-        onclick="claim('${esc(t.id)}')">
-        ${done ? 'Claimed' : 'Claim reward'}
-      </button>
-    </article>`;
+  const html = tasks.map(task => {
+    const done = claimed.includes(task.id);
+
+    return `
+      <article class="task">
+        <div class="emoji">${task.id === 'offer' ? '🎯' : '⭐'}</div>
+        <h3>${esc(task.title)}</h3>
+        <p>${esc(task.description)}</p>
+        <div class="reward">🪙 ${Number(task.coins || 0)} coins</div>
+        <button
+          class="btn ${done ? 'ghost' : 'primary'}"
+          data-task-id="${esc(task.id)}"
+          ${done ? 'disabled' : ''}>
+          ${done ? 'Claimed' : 'Claim Reward'}
+        </button>
+      </article>
+    `;
   }).join('');
 
-  $('homeTasks').innerHTML =
-    html || '<p class="muted">अभी कोई task उपलब्ध नहीं।</p>';
+  const empty = '<p class="muted">No tasks available right now.</p>';
 
-  $('allTasks').innerHTML = html;
+  $('homeTasks').innerHTML = html || empty;
+  $('allTasks').innerHTML = html || empty;
+
+  document.querySelectorAll('[data-task-id]').forEach(button => {
+    button.addEventListener('click', () => {
+      claim(button.dataset.taskId);
+    });
+  });
 }
 
-async function claim(id) {
+async function claim(taskId) {
   try {
-    await api('/api/claim', 'POST', { taskId: id });
+    await api('/api/claim', 'POST', { taskId });
     await refresh();
-    toast('Demo reward coins जोड़े गए');
-  } catch (e) {
-    toast(e.message);
+    toast('Demo reward coins added.');
+  } catch (error) {
+    toast(error.message);
   }
 }
 
 // ---------------- WITHDRAWAL SYSTEM ----------------
 
 function openWithdraw() {
-  $('amount').max = me.balance;
+  if (!me) return;
+
+  $('amount').max = Number(me.balance || 0);
+  $('withdrawForm').reset();
   $('modal').classList.remove('hidden');
 }
 
@@ -316,23 +398,38 @@ function closeModal() {
   $('modal').classList.add('hidden');
 }
 
-$('withdrawForm').onsubmit = async e => {
-  e.preventDefault();
+$('withdrawForm').onsubmit = async event => {
+  event.preventDefault();
+
+  const amount = Number($('amount').value);
+  const upi = $('upi').value.trim();
+  const pin = $('withdrawPin').value;
+
+  if (!Number.isFinite(amount) || amount < 10) {
+    toast('Minimum demo withdrawal amount is ₹10.');
+    return;
+  }
+
+  if (!/^\d{4,6}$/.test(pin)) {
+    toast('Enter your 4 to 6 digit Security PIN.');
+    return;
+  }
 
   try {
     await api('/api/withdraw', 'POST', {
-      amount: Number($('amount').value),
-      upi: $('upi').value.trim()
+      amount,
+      upi,
+      pin
     });
 
     closeModal();
     await refresh();
     showView('wallet');
 
-    toast('Demo request admin panel में भेज दी गई');
+    toast('Demo withdrawal request submitted.');
 
-  } catch (e) {
-    toast(e.message);
+  } catch (error) {
+    toast('Withdrawal error: ' + error.message);
   }
 };
 
@@ -341,39 +438,53 @@ $('withdrawForm').onsubmit = async e => {
 async function copyCode() {
   try {
     await navigator.clipboard.writeText(me.referralCode);
-    toast('Referral code copied');
+    toast('Referral code copied.');
   } catch {
-    toast('Code: ' + me.referralCode);
+    toast('Your referral code: ' + me.referralCode);
   }
 }
 
 // ---------------- NAVIGATION ----------------
 
-function showView(v) {
-  document.querySelectorAll('.view').forEach(x =>
-    x.classList.add('hidden')
-  );
+function showView(viewName) {
+  document.querySelectorAll('.view').forEach(view => {
+    view.classList.add('hidden');
+  });
 
-  const view = $('view-' + v);
-  if (view) view.classList.remove('hidden');
+  const selectedView = $('view-' + viewName);
 
-  document.querySelectorAll('.nav button').forEach(b =>
-    b.classList.toggle('active', b.dataset.view === v)
-  );
+  if (selectedView) {
+    selectedView.classList.remove('hidden');
+  }
+
+  document.querySelectorAll('.nav button').forEach(button => {
+    button.classList.toggle(
+      'active',
+      button.dataset.view === viewName
+    );
+  });
 }
 
-document.querySelectorAll('.nav button').forEach(b => {
-  b.onclick = () => showView(b.dataset.view);
+document.querySelectorAll('.nav button').forEach(button => {
+  button.addEventListener('click', () => {
+    showView(button.dataset.view);
+  });
 });
+
+// ---------------- LOGOUT ----------------
 
 function logout() {
   token = '';
   localStorage.removeItem('mea_token');
+
   me = null;
   cache = null;
 
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
+
+  $('authForm').reset();
+  setMode('login');
 }
 
 // ---------------- START APP ----------------
@@ -384,9 +495,12 @@ if (params.get('ref')) {
   $('ref').value = params.get('ref');
 }
 
-if (token) refresh();
+setMode('register');
+
+if (token) {
+  refresh();
+}
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
-  
