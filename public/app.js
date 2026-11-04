@@ -12,7 +12,6 @@ $('authForm').onsubmit = async e => {
     const d = await api('/api/login', 'POST', { phone });
 
     alert('Login सफल हुआ!');
-
     token = d.token;
     localStorage.setItem('mea_token', token);
     await refresh();
