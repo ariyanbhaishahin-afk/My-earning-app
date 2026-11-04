@@ -1,24 +1,230 @@
-<!doctype html><html lang="hi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101827"><title>My Earning App • Admin</title><link rel="stylesheet" href="/style.css"></head><body><div class="shell"><header><div class="brand"><span class="logo">₹</span><div><b>Admin Console</b><small>My Earning App</small></div></div><a class="link" href="/">← User App</a></header><main id="adminLogin" class="auth card"><div class="eyebrow">SECURE AREA</div><h1>Admin Login</h1><p class="muted">Demo credentials default: admin / ChangeMe123!</p><form id="adminForm"><label>Username</label><input id="adminUser" value="admin" required><label>Password</label><input id="adminPass" type="password" placeholder="Admin password" required><button class="btn primary wide">Login</button></form><p class="tiny muted">Launch से पहले environment variables से password बदलें।</p></main><section id="adminApp" class="hidden"><div class="welcome"><div><div class="eyebrow">OVERVIEW</div><h1>Admin Dashboard</h1></div><button class="btn ghost" onclick="adminLogout()">Logout</button></div><div class="stats four"><article class="card metric"><span>Total users</span><strong id="usersCount">0</strong></article><article class="card metric"><span>Pending requests</span><strong id="pendingCount">0</strong></article><article class="card metric"><span>Demo rewards</span><strong id="earnedTotal">₹0</strong></article><article class="card metric"><span>Transactions</span><strong id="txCount">0</strong></article></div><div class="card">
-  <div class="section-head">
-    <h2>Demo USDT Deposit Requests</h2>
-    <button class="btn ghost" onclick="loadAdmin()">Refresh</button>
-  </div>
-  <p class="muted">Demo rate: 1 USDT = ₹110 | Referral: 1%</p>
-  <div class="tablewrap">
-    <table>
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>USDT</th>
-          <th>INR</th>
-          <th>Reference</th>
-          <th>Status</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="depositRows">
-        <tr><td colspan="6">कोई deposit request नहीं।</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div><div class="card"><div class="section-head"><h2>Withdrawal requests</h2><button class="btn ghost" onclick="loadAdmin()">Refresh</button></div><div class="tablewrap"><table><thead><tr><th>User</th><th>Amount</th><th>UPI</th><th>Status</th><th>Action</th></tr></thead><tbody id="withdrawRows"></tbody></table></div></div><div class="card"><h2>Users</h2><div class="tablewrap"><table><thead><tr><th>Name / Mobile</th><th>Balance</th><th>Coins</th><th>Credit</th></tr></thead><tbody id="userRows"></tbody></table></div></div><div class="card"><h2>Reward task settings</h2><div id="taskRows"></div></div><div class="card"><h2>Recent ledger</h2><div class="tablewrap"><table><thead><tr><th>Activity</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody id="ledgerRows"></tbody></table></div></div></div><div class="info notice">सभी balances demo-only हैं। Approve का अर्थ केवल admin द्वारा request को demo-approved mark करना है; कोई वास्तविक भुगतान नहीं होता।</div></section><footer>Admin Console • Protected API • Demo only</footer></div><div id="toast" class="toast"></div><script src="/admin.js"></script></body></html>
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>HUNTER PAY • Admin Console</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="brand">
+      <span class="logo">H</span>
+      <div>
+        <b>HUNTER PAY</b>
+        <small>ADMIN CONSOLE</small>
+      </div>
+    </div>
+    <a class="link" href="/">← User App</a>
+  </header>
+
+  <main id="adminLogin" class="auth card">
+    <div class="eyebrow">SECURE ADMIN AREA</div>
+    <h1>Admin Login</h1>
+    <p class="muted">Sign in using your configured administrator credentials.</p>
+
+    <form id="adminForm">
+      <label>Admin Username</label>
+      <input id="adminUser" placeholder="Enter admin username" required autocomplete="username">
+
+      <label>Admin Password</label>
+      <input id="adminPass" type="password" placeholder="Enter admin password" required autocomplete="current-password">
+
+      <button type="submit" class="btn primary wide">Secure Login</button>
+    </form>
+
+    <p class="tiny muted">
+      Admin credentials are configured through Render environment variables.
+      Never share your admin password.
+    </p>
+  </main>
+
+  <section id="adminApp" class="hidden">
+
+    <div class="welcome">
+      <div>
+        <div class="eyebrow">HUNTER PAY MANAGEMENT</div>
+        <h1>Admin Dashboard</h1>
+      </div>
+      <button class="btn ghost" onclick="adminLogout()">Logout</button>
+    </div>
+
+    <div class="stats four">
+      <article class="card metric">
+        <span>Total Users</span>
+        <strong id="usersCount">0</strong>
+      </article>
+
+      <article class="card metric">
+        <span>Pending Requests</span>
+        <strong id="pendingCount">0</strong>
+      </article>
+
+      <article class="card metric">
+        <span>Demo Rewards</span>
+        <strong id="earnedTotal">₹0</strong>
+      </article>
+
+      <article class="card metric">
+        <span>Transactions</span>
+        <strong id="txCount">0</strong>
+      </article>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
+        <h2>Demo USDT Deposit Requests</h2>
+        <button class="btn ghost" onclick="loadAdmin()">Refresh</button>
+      </div>
+
+      <p class="muted">Demo rate: 1 USDT = ₹110 | Direct Referral Commission: 1%</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>USDT</th>
+              <th>INR</th>
+              <th>Reference</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="depositRows">
+            <tr><td colspan="6">No deposit requests yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-head">
+        <h2>Withdrawal Requests</h2>
+        <button class="btn ghost" onclick="loadAdmin()">Refresh</button>
+      </div>
+
+      <p class="tiny muted">Demo requests only. Approval does not transfer real money.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Amount</th>
+              <th>UPI ID</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="withdrawRows">
+            <tr><td colspan="5">No withdrawal requests yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>User Management</h2>
+      <p class="muted">View registered users and their demo balances.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name / Mobile</th>
+              <th>Balance</th>
+              <th>Coins</th>
+              <th>Credit</th>
+            </tr>
+          </thead>
+          <tbody id="userRows">
+            <tr><td colspan="4">No users found.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">ACCOUNT RECOVERY</div>
+      <h2>Legacy Account Password & PIN Setup</h2>
+
+      <p class="muted">
+        Use this only for existing accounts that were created before password protection was introduced.
+        Verify the account owner's identity independently before making changes.
+      </p>
+
+      <form id="legacyForm">
+        <label>Existing User ID</label>
+        <input id="legacyUserId" placeholder="Enter the exact user ID" required>
+
+        <label>New Login Password</label>
+        <input id="legacyPassword" type="password" minlength="8"
+          placeholder="Minimum 8 characters" required>
+
+        <label>New Security PIN</label>
+        <input id="legacyPin" type="password" inputmode="numeric"
+          minlength="4" maxlength="6" placeholder="4 to 6 digits" required>
+
+        <label class="tiny">
+          <input id="legacyVerified" type="checkbox" required>
+          I independently verified this account owner's identity.
+        </label>
+
+        <button type="submit" class="btn primary wide">
+          Set Legacy Account Credentials
+        </button>
+      </form>
+
+      <p class="tiny muted">
+        This action changes the user's login credentials. Never reset an account based only on a phone number or an unverified request.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Reward Task Settings</h2>
+      <div id="taskRows"></div>
+    </div>
+
+    <div class="card">
+      <h2>Recent Ledger</h2>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Activity</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerRows">
+            <tr><td colspan="4">No transactions found.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card info notice">
+      <b>Demo Mode Notice</b>
+      <p>
+        All balances, deposits, rewards and withdrawals are demo records.
+        Approving a request only changes its demo status.
+        No real money or USDT is transferred.
+      </p>
+    </div>
+
+  </section>
+
+  <footer>HUNTER PAY • ADMIN CONSOLE • DEMO ONLY</footer>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/admin.js"></script>
+</body>
+</html>
